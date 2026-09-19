@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
-import { submitContactForm, type ContactFormState } from "@/lib/contact";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle, AlertCircle } from "lucide-react";
 
@@ -33,15 +32,67 @@ const inputStyles =
 
 const labelStyles = "block text-sm font-medium text-nexora-text-secondary mb-2";
 
+interface FormState {
+  success: boolean;
+  error: boolean;
+  message: string;
+}
+
 export function ContactForm() {
-  const [state, formAction, isPending] = useActionState(submitContactForm, {
+  const [state, setState] = useState<FormState>({
     success: false,
     error: false,
     message: "",
-  } satisfies ContactFormState);
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setState({ success: false, error: false, message: "" });
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    const data = {
+      name: formData.get("name") as string,
+      email: formData.get("email") as string,
+      phone: formData.get("phone") as string,
+      company: (formData.get("company") as string) || undefined,
+      projectType: formData.get("projectType") as string,
+      budget: (formData.get("budget") as string) || undefined,
+      description: formData.get("description") as string,
+      preferredContact: formData.get("preferredContact") as string,
+    };
+
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      const result = await res.json();
+
+      if (res.ok) {
+        setState({ success: true, error: false, message: result.message });
+        form.reset();
+      } else {
+        setState({ success: false, error: true, message: result.message });
+      }
+    } catch {
+      setState({
+        success: false,
+        error: true,
+        message: "Something went wrong. Please try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="name" className={labelStyles}>
@@ -200,9 +251,9 @@ export function ContactForm() {
         size="lg"
         className="w-full md:w-auto"
         showArrow
-        disabled={isPending}
+        disabled={isSubmitting}
       >
-        {isPending ? "Sending..." : "Send Project Inquiry"}
+        {isSubmitting ? "Sending..." : "Send Project Inquiry"}
       </Button>
     </form>
   );
